@@ -1,0 +1,110 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is the initial analysis of the COVID-19 data.
+First, load the data - initially from the REDCap, but then from a data file.
+Then choose composite outcome:
+
+```{r}
+library(tidyverse)
+data <- data %>%
+  mutate(composite = case_when(
+    out_status.factor == "Non-survivor" |
+      out_itu.factor == "Intensive care" ~
+      1,
+    TRUE ~ 0
+  )) %>% mutate(composite_inc_niv = case_when(
+    out_status.factor == "Non-survivor" |
+      out_itu.factor == "Intensive care" |
+      out_niv.factor != "No" ~
+      1,
+    TRUE ~ 0))
+```
+
+Now, to make the QoL data.
+First, select the columns, then make numeric, then drop na, for the moment.
+
+```{r}
+qol_scores <- data %>%
+  select(293:328) %>%
+  mutate_all(as.numeric) %>%
+  drop_na()
+
+qol_outputs <- sf36(qol_scores)
+qol_outputs
+```
+
+
+
+```{r}
+q <- qol_outputs %>%
+  summarise(
+    PF_m = mean(PF),
+    PF_sd = sd(PF),
+    RP_m = mean(RP),
+    RP_sd = sd(RP),
+    BP_m = mean(BP),
+    BP_sd = sd(BP),
+    GH_m = mean(GH),
+    GH_sd = sd(GH),
+    VT_m = mean(VT),
+    VT_sd = sd(VT),
+    SF_m = mean(SF),
+    SF_sd = sd(SF),
+    RD_m = mean(RE),
+    RD_sd = sd(RE),
+    MH_m = mean(MH),
+    MH_sd = sd(MH),
+    PCS_m = mean(PCS),
+    PCS_sd = sd(PCS),
+    MCS_m = mean(MCS),
+    MCS_sd = sd(MCS)
+    
+    ) 
+
+qol_outputs %>%
+ pivot_longer(1:10, names_to = "questions", values_to = "result") %>%
+  ggplot(aes(x = result, y = questions)) +
+  geom_boxplot() +
+  stat_summary(fun.y=mean, geom="point", shape=23, size=4) +
+  coord_flip()
+
+qol_outputs %>%
+ pivot_longer(1:10, names_to = "questions", values_to = "result")
+
+qol_outputs %>%
+ pivot_longer(1:8, names_to = "questions", values_to = "result") %>%
+  ggplot(aes(x = result, y = questions)) +
+  geom_bar(stat = "summary", fun.y = "mean") + 
+   geom_errorbar(stat='summary', width=.2) +
+  coord_flip() +
+  labs(title = "SF-36 mean and SD for the 8 domains") +
+  theme_bw()
+
+```
+
+
+```{r}
+composite_out <- data %>%
+  select(293:328, composite_inc_niv) %>%
+  mutate_all(as.numeric) %>%
+  drop_na() %>%
+  select(composite_inc_niv) %>%
+  bind_cols(qol_outputs)
+
+composite_out %>%
+  pivot_longer(2:11, names_to = "questions", values_to = "result") %>%
+  mutate(composite_inc_niv =as.factor(composite_inc_niv)) %>%
+  ggplot(aes(x = result, y = questions, fill = composite_inc_niv)) +
+  geom_bar(stat = "summary", fun.y = "mean", position = "dodge") + 
+   geom_errorbar(stat='summary', width=.2) +
+    facet_wrap(~ composite_inc_niv) +
+  coord_flip() +
+  labs(title = "SF-36 mean and SD for the 8 domains") +
+  theme_bw()
+  
+   
+```
+
