@@ -21,6 +21,8 @@ data <- data %>%
       out_niv.factor != "No" ~
       1,
     TRUE ~ 0))
+
+se <- function(x, ...) sqrt(var(x, ...)/length(x)) #alculate SE
 ```
 
 Now, to make the QoL data.
@@ -34,9 +36,12 @@ qol_scores <- data %>%
 
 qol_outputs <- sf36(qol_scores)
 qol_outputs
+
+
+
 ```
 
-
+ More work to make the QoL data - setting up the data etc.
 
 ```{r}
 q <- qol_outputs %>%
@@ -86,13 +91,20 @@ qol_outputs %>%
 ```
 
 
+Now this makes the pretty graph: It seems pretty clear that QoL is affected by severity of disease...
+
 ```{r}
+
+
 composite_out <- data %>%
   select(293:328, composite_inc_niv) %>%
   mutate_all(as.numeric) %>%
   drop_na() %>%
   select(composite_inc_niv) %>%
-  bind_cols(qol_outputs)
+  bind_cols(qol_outputs) %>% mutate(composite_inc_niv = case_when(
+    composite_inc_niv  ==1 ~ "NIV/ITU"
+      ,
+    TRUE ~"Ward only"))
 
 composite_out %>%
   pivot_longer(2:11, names_to = "questions", values_to = "result") %>%
@@ -105,6 +117,137 @@ composite_out %>%
   labs(title = "SF-36 mean and SD for the 8 domains") +
   theme_bw()
   
+
+composite_out %>%
+  pivot_longer(2:9, names_to = "questions", values_to = "result") %>%
+    mutate(composite_inc_niv =as.factor(composite_inc_niv)) %>%
+  group_by(composite_inc_niv, questions) %>%
+  summarise(
+    mean = mean(result),
+    sd = se(result)
+  ) %>% 
+  ungroup() %>%
+  ggplot(aes(x = questions, y = mean, fill = composite_inc_niv)) +
+  geom_bar( stat = "identity", position = position_dodge()) +
+  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd), position = position_dodge(0.9), width = 0.2) +
+  xlab("Domains of the SF-36") +
+  ylab("Score (mean, standard error)")+  
+  scale_fill_hue(name="Severity of disease")  +# Legend label, use darker colors
+  theme_bw()
+
    
 ```
 
+
+Now let's generate main database
+
+
+```{r}
+withqol <- data %>%
+  drop_na(293:328) %>%
+  bind_cols(qol_outputs)
+
+withqol %>%
+  pivot_longer(346:355, names_to = "questions", values_to = "result") %>%
+    mutate(composite_inc_niv =as.factor(composite_inc_niv)) %>%
+  group_by(composite_inc_niv, questions) %>%
+  summarise(
+    mean = mean(result),
+    sd = se(result)
+  ) %>% 
+  ungroup() %>%
+  ggplot(aes(x = questions, y = mean, fill = composite_inc_niv)) +
+  geom_bar( stat = "identity", position = position_dodge()) +
+  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd), position = position_dodge(0.9), width = 0.2) +
+  xlab("Domains of the SF-36") +
+  ylab("Score (mean, standard error)")+  
+  scale_fill_hue(name="Severity of disease")  +# Legend label, use darker colors
+  theme_bw()
+
+
+withqol %>%
+  pivot_longer(346:355, names_to = "questions", values_to = "result") %>%
+    mutate(composite_inc_niv =as.factor(composite_inc_niv)) %>%
+  group_by(sex.factor, questions) %>%
+  summarise(
+    mean = mean(result),
+    sd = se(result)
+  ) %>% 
+  ungroup() %>%
+  ggplot(aes(x = questions, y = mean, fill = sex.factor)) +
+  geom_bar( stat = "identity", position = position_dodge()) +
+  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd), position = position_dodge(0.9), width = 0.2) +
+  xlab("Domains of the SF-36") +
+  ylab("Score (mean, standard error)")+  
+  scale_fill_hue(name="Gender")  +# Legend label, use darker colors
+  theme_bw()
+
+
+
+
+
+```
+
+
+Now, let's look at QoL and antibody index. No correlation between antibody response and QoL - why would there be?
+
+```{r}
+
+
+
+cor(withqol$sp_abbottindex_12, withqol$PCS, use = "complete.obs")
+cor(withqol$sp_abbottindex_12, withqol$MCS, use = "complete.obs")
+
+ggplot(withqol) +
+  geom_point(aes(x = sp_abbottindex_12, y = MCS, color = "Mental composite score")) +
+  geom_point(aes(x = sp_abbottindex_12, y = PCS, color = "Physical composite score")) 
+  
+
+```
+
+
+What about QoL and spirometry results
+
+```{r}
+
+
+
+cor(as.numeric(withqol$fu12_fvc), withqol$PCS, use = "complete.obs")
+cor(withqol$sp_abbottindex_12, withqol$MCS, use = "complete.obs")
+
+withqol %>%
+  mutate(fu12_fvc = as.numeric(fu12_fvc)) %>%
+  ggplot() +
+  geom_point(aes(x = fu12_fvc, y = MCS, color = "Mental composite score")) +
+  geom_point(aes(x = fu12_fvc, y = PCS, color = "Physical composite score")) 
+
+withqol %>%
+  mutate(fu12_fvcpred = as.numeric(fu12_fvcpred)) %>%
+  ggplot() +
+  geom_point(aes(x = fu12_fvcpred, y = MCS, color = "Mental composite score")) +
+  geom_point(aes(x = fu12_fvcpred, y = PCS, color = "Physical composite score")) 
+
+
+withqol %>%
+  mutate_all(as.numeric) %>%
+  pivot_longer(141:147, names_to = "questions", values_to = "result") %>%
+  group_by(fu12_cxr, questions) %>%
+  summarise(
+    mean = mean(result, na.rm = TRUE),
+    sd = se(result, na.rm = TRUE)
+  ) %>% 
+  ungroup() %>%
+  mutate(fu12_cxr = as.factor(fu12_cxr)) %>%
+  ggplot(aes(x = questions, y = mean, fill = fu12_cxr)) +
+  geom_bar( stat = "identity", position = position_dodge()) +
+  geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd), position = position_dodge(0.9), width = 0.2) +
+  xlab("Domains of the SF-36") +
+  ylab("Score (mean, standard error)")+  
+  scale_fill_hue(name="Gender")  +# Legend label, use darker colors
+  theme_bw()
+
+
+
+
+
+```
