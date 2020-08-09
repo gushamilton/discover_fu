@@ -9,20 +9,26 @@ Then choose composite outcome:
 
 ```{r}
 library(tidyverse)
+library(gtsummary)
 data <- data %>%
   mutate(composite = case_when(
     out_status.factor == "Non-survivor" |
       out_itu.factor == "Intensive care" ~
       1,
     TRUE ~ 0
-  )) %>% mutate(composite_inc_niv = case_when(
+  )) %>% mutate(global_severity = case_when(
     out_status.factor == "Non-survivor" |
       out_itu.factor == "Intensive care" |
       out_niv.factor != "No" ~
-      1,
-    TRUE ~ 0))
+      "Severe",
+    out_oxygen == 2 ~ "Moderate",
+    TRUE ~ "Mild"))
+
+
+sum(data$out_niv, na.rm = TRUE)
 
 se <- function(x, ...) sqrt(var(x, ...)/length(x)) #alculate SE
+
 ```
 
 Now, to make the QoL data.
@@ -30,12 +36,12 @@ First, select the columns, then make numeric, then drop na, for the moment.
 
 ```{r}
 qol_scores <- data %>%
-  select(293:328) %>%
-  mutate_all(as.numeric) %>%
-  drop_na()
+   filter(fu12_attend == 1) %>%
+  select(171:206) %>%
+  mutate_all(as.numeric)
 
 qol_outputs <- sf36(qol_scores)
-qol_outputs
+
 
 
 
@@ -144,25 +150,30 @@ Now let's generate main database
 
 ```{r}
 withqol <- data %>%
-  drop_na(293:328) %>%
+ filter(fu12_attend == 1) %>%
   bind_cols(qol_outputs)
 
 withqol %>%
-  pivot_longer(346:355, names_to = "questions", values_to = "result") %>%
-    mutate(composite_inc_niv =as.factor(composite_inc_niv)) %>%
-  group_by(composite_inc_niv, questions) %>%
+  pivot_longer(365:373, names_to = "questions", values_to = "result") %>%
+    mutate(global_severity =as.factor(global_severity)) %>%
+  group_by(global_severity, questions) %>%
   summarise(
-    mean = mean(result),
-    sd = se(result)
+    mean = mean(result, na.rm = TRUE),
+    sd = se(result, na.rm = TRUE)
   ) %>% 
-  ungroup() %>%
-  ggplot(aes(x = questions, y = mean, fill = composite_inc_niv)) +
+  ungroup()  %>%
+  ggplot(aes(x = questions, y = mean, fill = global_severity)) +
   geom_bar( stat = "identity", position = position_dodge()) +
   geom_errorbar(aes(ymax = mean + sd, ymin = mean - sd), position = position_dodge(0.9), width = 0.2) +
   xlab("Domains of the SF-36") +
   ylab("Score (mean, standard error)")+  
   scale_fill_hue(name="Severity of disease")  +# Legend label, use darker colors
-  theme_bw()
+  theme_bw() +
+  ylim(0,100) +
+  # ggtitle("Quality of Life: at 2-3 months post COVID-19") +
+  scale_fill_grey(name = "Severity of disease")
+
+
 
 
 withqol %>%
@@ -180,12 +191,19 @@ withqol %>%
   xlab("Domains of the SF-36") +
   ylab("Score (mean, standard error)")+  
   scale_fill_hue(name="Gender")  +# Legend label, use darker colors
-  theme_bw()
+  theme_bw() 
 
 
 
 
 
+```
+
+
+```{r}
+withqol %>%
+  select(age, sex, global_severity) %>%
+  tbl_summary(by = global_severity)
 ```
 
 
@@ -217,15 +235,30 @@ cor(withqol$sp_abbottindex_12, withqol$MCS, use = "complete.obs")
 
 withqol %>%
   mutate(fu12_fvc = as.numeric(fu12_fvc)) %>%
-  ggplot() +
-  geom_point(aes(x = fu12_fvc, y = MCS, color = "Mental composite score")) +
-  geom_point(aes(x = fu12_fvc, y = PCS, color = "Physical composite score")) 
+  ggplot(aes(x = fu12_fvc, y = PCS)) +
+  geom_point() +
+  xlab("FVC (actual) L/") +
+  ylab("Physical Composite score") +
+  geom_smooth(method = "lm") +
+  theme_bw()
+  
+  
+  withqol %>%
+  mutate(fu12_fvc = as.numeric(fu12_fvcpred)) %>%
+  ggplot(aes(x = fu12_fvc, y = PCS)) +
+  geom_point() +
+  xlab("FVC (predicted) %") +
+  ylab("Physical Composite score") +
+  geom_smooth(method = "lm") +
+  theme_bw()
+
 
 withqol %>%
   mutate(fu12_fvcpred = as.numeric(fu12_fvcpred)) %>%
   ggplot() +
   geom_point(aes(x = fu12_fvcpred, y = MCS, color = "Mental composite score")) +
-  geom_point(aes(x = fu12_fvcpred, y = PCS, color = "Physical composite score")) 
+  geom_point(aes(x = fu12_fvcpred, y = PCS, color = "Physical composite score"))  +
+  ggtitle("FVC(pred) vs QoL summary")
 
 
 withqol %>%
@@ -250,4 +283,18 @@ withqol %>%
 
 
 
+```
+
+
+```{r}
+
+withqol %>%
+  select(fu12_cxr, adm_news, adm_o2, adm_spo2, adm_lung.factor, fu_cxr_severity, composite_inc_niv, fu12_cxrreport) %>%
+  tbl_summary()
+  
+
+withqol %>%
+  mutate(fu = as.Date(fu12_date) - as.Date(admit_date)) %>%
+  ggplot() +
+  geom_point(aes(x = fu, y = PCS)) 
 ```
