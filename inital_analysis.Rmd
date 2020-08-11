@@ -169,9 +169,15 @@ withqol %>%
   ylab("Score (mean, standard error)")+  
   scale_fill_hue(name="Severity of disease")  +# Legend label, use darker colors
   theme_bw() +
-  ylim(0,100) +
-  # ggtitle("Quality of Life: at 2-3 months post COVID-19") +
-  scale_fill_grey(name = "Severity of disease")
+  ylim(0,100) + theme(
+  # Hide panel borders and remove grid lines
+  panel.border = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.grid.minor = element_blank(),
+  # Change axis line
+  axis.line = element_line(colour = "black")
+  )# ggtitle("Quality of Life: at 2-3 months post COVID-19") +
+
 
 
 
@@ -191,9 +197,20 @@ withqol %>%
   xlab("Domains of the SF-36") +
   ylab("Score (mean, standard error)")+  
   scale_fill_hue(name="Gender")  +# Legend label, use darker colors
-  theme_bw() 
+  theme_bw()
 
-
+withqol %>%
+  mutate(global_severity = case_when(
+    out_status.factor == "Non-survivor" |
+      out_itu.factor == "Intensive care" |
+      out_niv.factor != "No" ~
+      3,
+    out_oxygen == 2 ~ 2,
+    TRUE ~ 1)) %>%
+  select(fu12_fvc, fu12_fvcpred, fu12_fvc1sr, fu12_fev1, fu12_fev1pred, fu12_fev1sr, global_severity) %>%
+  mutate_all(as.numeric) %>%
+  tbl_summary(by = global_severity, missing = "no") %>%
+  add_p()
 
 
 
@@ -235,23 +252,27 @@ cor(withqol$sp_abbottindex_12, withqol$MCS, use = "complete.obs")
 
 withqol %>%
   mutate(fu12_fvc = as.numeric(fu12_fvc)) %>%
-  ggplot(aes(x = fu12_fvc, y = PCS)) +
+  ggplot() +
   geom_point() +
   xlab("FVC (actual) L/") +
   ylab("Physical Composite score") +
   geom_smooth(method = "lm") +
   theme_bw()
   
+
+label(withqol$global_severity)="Study number "
   
-  withqol %>%
-  mutate(fu12_fvc = as.numeric(fu12_fvcpred)) %>%
-  ggplot(aes(x = fu12_fvc, y = PCS)) +
-  geom_point() +
+withqol %>%
+  mutate(Severity = global_severity) %>%
+  mutate(fu12_fvcpred = as.numeric(fu12_fvcpred)) %>%
+  ggplot() +
+  geom_point(aes(x = fu12_fvcpred, y = PCS, shape = Severity) )  +
+  scale_fill_continuous(name = "Severity") +
+  labs(fill = "Severity") +
   xlab("FVC (predicted) %") +
   ylab("Physical Composite score") +
-  geom_smooth(method = "lm") +
+  geom_smooth(aes(x = fu12_fvcpred, y = PCS), method = "lm") +
   theme_bw()
-
 
 withqol %>%
   mutate(fu12_fvcpred = as.numeric(fu12_fvcpred)) %>%
@@ -289,12 +310,18 @@ withqol %>%
 ```{r}
 
 withqol %>%
-  select(fu12_cxr, adm_news, adm_o2, adm_spo2, adm_lung.factor, fu_cxr_severity, composite_inc_niv, fu12_cxrreport) %>%
-  tbl_summary()
+  select( adm_news, adm_o2, adm_spo2, adm_lung.factor, fu_cxr_severity, global_severity, fu12_cxrreport,  fu_cxr_severity) %>%
+  tbl_summary(by = global_severity,
+              statistic = list(all_integer() ~ "{median}"))
   
 
 withqol %>%
   mutate(fu = as.Date(fu12_date) - as.Date(admit_date)) %>%
   ggplot() +
   geom_point(aes(x = fu, y = PCS)) 
+
+
+withqol %>%
+  group_by(global_severity) %>%
+  summarise(median = median (fu_cxr_severity, na.rm = TRUE), lower = quantile(fu_cxr_severity, prob = 0.25, na.rm = TRUE), upper = quantile(fu_cxr_severity, prob = 0.75, na.rm = TRUE))
 ```
