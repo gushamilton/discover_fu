@@ -1,0 +1,175 @@
+---
+title: "Vaccine analyis data"
+author: "FH"
+date: "02/03/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(tidyverse)
+library(firatheme)
+
+```
+
+This script analyses the vaccine data. First, we draw in the latest data from REDCap. This is not everyone, and there is missing data, but essentially, we analyse anyone who has been selected as a vaccine or control (not the whole dataset - although we can look at that.
+
+
+```{r cars}
+source("DISCOVER_R_2021-03-02_2212.r")
+source("sf_36_script.R")
+```
+
+Then, we make the QoL data, and do the initial vaccine plots.
+To be clear, these plot the mental and physical composite scores at 3, 8, and 12 months. Patients were vaccinated at between 8 and 12 months. Controls have not been vaccinated. This is a validated QoL score, with PCS and MCS the two summary metrics.
+
+```{r}
+inital_qol <- data %>%
+  select(178:213) %>%
+  mutate_all(as.numeric) %>%
+  sf36()
+
+m8_qol <-  data %>%
+  select(296:331) %>%
+  mutate_all(as.numeric) %>%
+  sf36()
+
+m12_qol <- data %>%
+  select(370:405) %>%
+  mutate_all(as.numeric) %>%
+  sf36()
+
+data %>%
+  filter(!is.na(sf36_9_8m_vac))
+
+vac_plots <- data %>%
+  select(lab_no, sex, vac_control.factor) %>%
+  mutate(MCS_1 = inital_qol$MCS,
+         MCS_8 = m8_qol$MCS,
+         MCS_vacc = m12_qol$MCS,
+         PCS_1 = inital_qol$PCS,
+         PCS_8 = m8_qol$PCS,
+         PCS_vacc = m12_qol$PCS) %>%
+      filter(!is.na(vac_control.factor))
+vac_plots
+  
+
+vac_plots %>%
+    pivot_longer(MCS_1:MCS_vacc) %>%
+  ggplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value)) +
+  geom_jitter(color="black", size=0.4, alpha=0.9, width = 0.15) +
+  theme_fira() +
+  facet_wrap(~ vac_control.factor) +
+  scale_x_discrete(labels=c("MCS_1" = "3 month",
+                            "MCS_8" = "8 month",
+                              "MCS_vacc" = "12 month")) +
+  ggtitle("Change in Mental Composite Score over time") +
+  labs(subtitle = "All vaccines given between 8 and 12 months") +
+  xlab("") +
+  ylab("")
+  
+
+vac_plots %>%
+    pivot_longer(PCS_1:PCS_vacc) %>%
+  ggplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value)) +
+  geom_jitter(color="black", size=0.4, alpha=0.9, width = 0.15) +
+  theme_fira() +
+  facet_wrap(~ vac_control.factor) +
+   scale_x_discrete(labels=c("PCS_1" = "3 month",
+                            "PCS_8" = "8 month",
+                              "PCS_vacc" = "12 month")) +
+  ggtitle("Change in Physical Composite Score over time") +
+  labs(subtitle = "All vaccines given between 8 and 12 months") +
+  xlab("") +
+  ylab("")
+  
+vac_plots %>%
+    pivot_longer(PCS_1:PCS_vacc) %>%
+  group_by(vac_control.factor, name) %>%
+  summarise(mean = mean(value, na.rm = T))
+
+
+data %>%
+  select(lab_no, sex, vac_control.factor) %>%
+  mutate(MCS_1 = inital_qol$MCS,
+         MCS_8 = m8_qol$MCS,
+         MCS_vacc = m12_qol$MCS,
+         PCS_1 = inital_qol$PCS,
+         PCS_8 = m8_qol$PCS,
+         PCS_vacc = m12_qol$PCS) 
+
+```
+
+Wow. Did not expect that. That is a DRAMATIC improvement in PCS. What is that driven by (this is a nightmare to sort, had to use a complex tidy function). So this drills down into the individual components of the MCS and PCS. There is much more variability in this as bizarrely these are reported as either 0,25,50, 75, or 100. Don't ask. But you can see the indivudal components. THe meanings are sometimes clear - MH = mental health, and sometimes unclear RP = role physical. Google them if you fancy.
+
+```{r}
+inital_long <- data %>%
+ select(lab_no, vac_control.factor) %>%
+  bind_cols(inital_qol) %>%
+  pivot_longer(-c(lab_no,vac_control.factor), names_to = "score") %>% 
+  mutate(time = " 3 month")
+
+m8_long <- data %>%
+ select(lab_no, vac_control.factor) %>%
+  bind_cols(m8_qol) %>%
+  pivot_longer(-c(lab_no,vac_control.factor), names_to = "score") %>% 
+  mutate(time = " 8 month")
+
+m12_long <-  data %>%
+ select(lab_no, vac_control.factor) %>%
+  bind_cols(m12_qol) %>%
+  pivot_longer(-c(lab_no,vac_control.factor), names_to = "score") %>% 
+  mutate(time = "12 Month")
+
+
+make_plot <- function(group_var) {
+inital_long %>%
+  bind_rows(m8_long, m12_long) %>% 
+    filter(!is.na(vac_control.factor)) %>%
+    filter(score == group_var) %>%
+  ggplot(aes(x = time, y = value)) +
+ geom_boxplot() +
+  geom_jitter(color="black", size=0.3, alpha=0.5, width = 0.10) +
+  theme_fira() +
+  facet_wrap(~vac_control.factor) +
+  ggtitle(paste0(group_var))
+}
+
+
+
+PF <- make_plot("PF")
+RP <- make_plot("RP")
+BP <- make_plot("BP")
+GH <- make_plot("GH")
+VT <- make_plot("VT")
+SF <- make_plot("SF")
+RE <- make_plot("RE")
+MH <- make_plot("MH")
+PCS <- make_plot("PCS")
+
+PF
+RP
+BP
+GH
+VT
+SF
+RE
+MH
+PCS
+```
+
+And finally the raw data for mean figures:
+
+```{r}
+inital_long %>%
+  bind_rows(m8_long, m12_long) %>% 
+  group_by(score, time, vac_control.factor) %>%
+  summarise(mean = mean(value, na.rm = T)) %>%
+  pivot_wider(names_from = vac_control.factor, values_from = mean) %>%
+  kableExtra::kbl () %>%
+  kableExtra::kable_styling()
+
+  
+```
+
