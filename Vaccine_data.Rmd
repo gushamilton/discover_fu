@@ -8,6 +8,7 @@ output: html_document
 ```{r setup, include=FALSE}
 library(tidyverse)
 library(firatheme)
+library(ggsignif)
 
 ```
 
@@ -15,7 +16,7 @@ This script analyses the vaccine data. First, we draw in the latest data from RE
 
 
 ```{r cars}
-source("DISCOVER_R_2021-03-02_2212.r")
+source("DISCOVER_R_2021-03-03_2152.r")
 source("sf_36_script.R")
 ```
 
@@ -38,8 +39,7 @@ m12_qol <- data %>%
   mutate_all(as.numeric) %>%
   sf36()
 
-data %>%
-  filter(!is.na(sf36_9_8m_vac))
+
 
 vac_plots <- data %>%
   select(lab_no, sex, vac_control.factor) %>%
@@ -50,8 +50,6 @@ vac_plots <- data %>%
          PCS_8 = m8_qol$PCS,
          PCS_vacc = m12_qol$PCS) %>%
       filter(!is.na(vac_control.factor))
-vac_plots
-  
 
 vac_plots %>%
     pivot_longer(MCS_1:MCS_vacc) %>%
@@ -66,7 +64,15 @@ vac_plots %>%
   ggtitle("Change in Mental Composite Score over time") +
   labs(subtitle = "All vaccines given between 8 and 12 months") +
   xlab("") +
-  ylab("")
+  ylab("") +
+  geom_signif(
+    comparisons = list(c("MCS_8", "MCS_vacc"))
+  ) +
+  geom_signif(
+    comparisons = list(c("MCS_1", "MCS_vacc")),
+    y_position = 80
+  ) +
+  ylim(0,90)
   
 
 vac_plots %>%
@@ -82,26 +88,61 @@ vac_plots %>%
   ggtitle("Change in Physical Composite Score over time") +
   labs(subtitle = "All vaccines given between 8 and 12 months") +
   xlab("") +
-  ylab("")
+  ylab("") +
+   geom_signif(
+    comparisons = list(c("PCS_8", "PCS_vacc"))
+  ) +
+  geom_signif(
+    comparisons = list(c("PCS_1", "PCS_vacc")),
+    y_position = 70
+  ) +
+  ylim(0,80)
   
 vac_plots %>%
     pivot_longer(PCS_1:PCS_vacc) %>%
   group_by(vac_control.factor, name) %>%
   summarise(mean = mean(value, na.rm = T))
 
+data$edin_3m<- data %>%
+  select(starts_with("wemw") &  ends_with("8m") & where(is.numeric)) %>%
+  rowSums()
+
+data$edin_8m <-  data %>%
+  select(starts_with("wemw") &  ends_with("vac") & where(is.numeric)) %>%
+  rowSums()
+
+data$edin_m12 <-  data %>%
+  select(starts_with("wemw") &  !ends_with("vac") & where(is.numeric) & !ends_with("8m")) %>%
+  rowSums()
 
 data %>%
-  select(lab_no, sex, vac_control.factor) %>%
-  mutate(MCS_1 = inital_qol$MCS,
-         MCS_8 = m8_qol$MCS,
-         MCS_vacc = m12_qol$MCS,
-         PCS_1 = inital_qol$PCS,
-         PCS_8 = m8_qol$PCS,
-         PCS_vacc = m12_qol$PCS) 
+  select(vac_control.factor, edin_3m, edin_8m, edin_m12) %>%
+  filter(!is.na(vac_control.factor)) %>%
+  pivot_longer(-c(vac_control.factor)) %>%
+  ggplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value)) +
+  geom_jitter(color="black", size=0.4, alpha=0.9, width = 0.15) +
+  theme_fira() +
+  facet_wrap(~ vac_control.factor) +
+  scale_x_discrete(labels=c("edin_3m" = "3 month",
+                            "edin_8m" = "8 month",
+                              "edin_m12" = "12 month")) +
+  ggtitle("Change in Edinburgh-Warwick Mental Wellbeing Scale") +
+  labs(subtitle = "All vaccines given between 8 and 12 months") +
+  xlab("") +
+  ylab("") +
+   geom_signif(
+    comparisons = list(c("edin_8m", "edin_m12"))
+  ) +
+  geom_signif(
+    comparisons = list(c("edin_3m", "edin_m12")),
+    y_position = 80
+  ) +
+  ylim(0,90)
+  
 
 ```
-
-Wow. Did not expect that. That is a DRAMATIC improvement in PCS. What is that driven by (this is a nightmare to sort, had to use a complex tidy function). So this drills down into the individual components of the MCS and PCS. There is much more variability in this as bizarrely these are reported as either 0,25,50, 75, or 100. Don't ask. But you can see the indivudal components. THe meanings are sometimes clear - MH = mental health, and sometimes unclear RP = role physical. Google them if you fancy.
+What is that driven by (this is a nightmare to sort, had to use a complex tidy function). So this drills down into the individual components of the MCS and PCS. There is much more variability in this as bizarrely these are reported as either 0,25,50, 75, or 100. Don't ask. But you can see the indivudal components. THe meanings are sometimes clear - MH = mental health, and sometimes unclear RP = role physical. Google them if you fancy.
 
 ```{r}
 inital_long <- data %>%
@@ -171,5 +212,43 @@ inital_long %>%
   kableExtra::kable_styling()
 
   
+```
+
+
+
+```{r}
+
+az_pfizer <- data %>%
+  select(lab_no, sex, fu8m_vac_type.factor) %>%
+  mutate(MCS_1 = inital_qol$MCS,
+         MCS_8 = m8_qol$MCS,
+         MCS_vacc = m12_qol$MCS,
+         PCS_1 = inital_qol$PCS,
+         PCS_8 = m8_qol$PCS,
+         PCS_vacc = m12_qol$PCS) %>%
+      filter(!is.na(fu8m_vac_type.factor))
+
+az_pfizer %>%
+    pivot_longer(PCS_1:PCS_vacc) %>%
+  ggplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value)) +
+  geom_jitter(color="black", size=0.4, alpha=0.9, width = 0.15) +
+  theme_fira() +
+  facet_wrap(~ fu8m_vac_type.factor) +
+   scale_x_discrete(labels=c("PCS_1" = "3 month",
+                            "PCS_8" = "8 month",
+                              "PCS_vacc" = "12 month")) +
+  ggtitle("Change in Physical Composite Score over time") +
+  labs(subtitle = "All vaccines given between 8 and 12 months") +
+  xlab("") +
+  ylab("") +
+   geom_signif(
+    comparisons = list(c("PCS_8", "PCS_vacc"))
+  ) +
+  geom_signif(
+    comparisons = list(c("PCS_1", "PCS_vacc")),
+    y_position = 70
+  ) +
+  ylim(0,80)
 ```
 
