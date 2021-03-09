@@ -83,17 +83,21 @@ lin_mod2 %>%
 mcs_plot <- vac_plots %>%
     pivot_longer(MCS_1:MCS_vacc) %>%
   ggplot(aes(x = name, y = value)) +
-  geom_boxplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value, fill = name)) +
   geom_jitter(color="black", size=0.4, alpha=0.5, width = 0.15) +
   theme_fira() +
+    theme(legend.position = "none") +
   facet_wrap(~ vac_control.factor) +
   scale_x_discrete(labels=c("MCS_1" = "3 month",
                             "MCS_8" = "8 month",
                               "MCS_vacc" = "10 month")) +
-  ggtitle("Change in Mental Composite Score over time  ") +
-  labs(subtitle = "All vaccines given between 8 and 10 months") +
+  # ggtitle("Change in Mental Composite Score over time  ") +
+  # labs(subtitle = "All vaccines given between 8 and 10 months") +
   xlab("") +
-  ylab("") 
+  ylab("") +
+  ylim(0,100) +
+  scale_fill_fira() 
+
   # geom_signif(
   #   comparisons = list(c("MCS_8", "MCS_vacc"))
   # ) +
@@ -107,17 +111,20 @@ mcs_plot <- vac_plots %>%
 pcs_plot <- vac_plots %>%
     pivot_longer(PCS_1:PCS_vacc) %>%
   ggplot(aes(x = name, y = value)) +
-  geom_boxplot(aes(x = name, y = value)) +
+  geom_boxplot(aes(x = name, y = value, fill = name)) +
   geom_jitter(color="black", size=0.4, alpha=0.5, width = 0.15) +
   theme_fira() +
+  theme(legend.position="none") +
   facet_wrap(~ vac_control.factor) +
    scale_x_discrete(labels=c("PCS_1" = "3 month",
                             "PCS_8" = "8 month",
-                              "PCS_vacc" = "10 month")) +
-  ggtitle("Change in Physical Composite Score over time  ") +
-  labs(subtitle = "All vaccines given between 8 and 10 months") 
+                              "PCS_vacc" = "Post vaccine/matched")) +
+  scale_fill_fira() +
+  # ggtitle("Change in Physical Composite Score over time  ") +
+  # labs(subtitle = "All vaccines given between 8 and 10 months") +
   xlab("") +
-  ylab("") 
+  ylab("") +
+  ylim(0,100)
   #  geom_signif(
   #   comparisons = list(c("PCS_8", "PCS_vacc"))
   # ) +
@@ -340,12 +347,16 @@ mcs <- az_pfizer  %>%
 
 cowplot::plot_grid(pcs_az, mcs, rows = 2, labels = c('A', 'B'))
 
+az_pfizer_mod <- lm(MCS_vacc ~ MCS_8 + fu8m_vac_type.factor, data = az_pfizer)
+az_pfizer_mod <- lm(PCS_vacc ~ PCS_8 + fu8m_vac_type.factor, data = az_pfizer)
+tbl_regression(az_pfizer_mod)
 ```
 Now to include sympom scores:
 
 
 ```{r}
 library(scales)
+library(readxl)
 vaccines <- read_excel("Symptom_data.xlsx", 
     sheet = "Vaccinated (44)") %>%
   mutate(vaccinated = "Vaccinated")
