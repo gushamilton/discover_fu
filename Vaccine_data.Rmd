@@ -383,7 +383,15 @@ symptoms %>%
 
 symptoms %>%
   filter(Symptom != "Any symptom") %>%
-  mutate(Symptom = fct_reorder(Symptom, `8 month`)) %>%
+  mutate(Symptom = if_else(
+    Symptom == "Sore throat" |
+      Symptom == "Sputum" |
+      Symptom == "Blocked nose", "ENT symptoms", Symptom
+  )) %>%
+  group_by(Symptom) %>%
+  mutate(sum = sum(`8 month`)) %>%
+  ungroup() %>%
+  mutate(Symptom = fct_reorder(Symptom, sum)) %>%
   select(Symptom, `worsened (%)`, `unchanged (%)`, `improved/resolved (%)` , vaccinated) %>%
   pivot_longer(-c(vaccinated, Symptom)) %>%
   mutate(value =value/100) %>%
@@ -393,8 +401,8 @@ symptoms %>%
   coord_flip() +
   theme_fira() +
   theme(legend.position="bottom") +
-  ggtitle("Symptoms at 8 month follow up") +
-  labs(subtitle = "Stratified by change since vaccination/matched time") +
+  # ggtitle("Symptoms at 8 month follow up") +
+  # labs(subtitle = "Stratified by change since vaccination/matched time") +
   facet_wrap(~ vaccinated) +
   scale_y_continuous(labels = percent) +
   ylab("% of cohort who had this symptom at 8 month follow up:") +
