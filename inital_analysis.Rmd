@@ -42,7 +42,9 @@ qol_scores <- data %>%
 
 qol_outputs <- sf36(qol_scores)
 
-
+inital_qol %>%
+  head() %>%
+  datapasta::dpasta()
 
 
 ```

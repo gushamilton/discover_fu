@@ -54,6 +54,7 @@ data %>%
          PCS_8 = m8_qol$PCS,
          PCS_vacc = m12_qol$PCS) %>%
     filter(!is.na(vac_control.factor)) %>%
+  filter(fu12_diagnosis ==1) %>%
   select(age, sex.factor, adm_diabetes, adm_heart, adm_lung, fu12_antibody, vac_control.factor,MCS_1, MCS_8, MCS_vacc, PCS_1, PCS_8, PCS_vacc) %>%
   tbl_summary(by = "vac_control.factor") %>%
   add_p()
@@ -66,7 +67,8 @@ vac_plots <- data %>%
          PCS_1 = inital_qol$PCS,
          PCS_8 = m8_qol$PCS,
          PCS_vacc = m12_qol$PCS) %>%
-      filter(!is.na(vac_control.factor))
+      filter(!is.na(vac_control.factor)) %>%
+  filter(fu12_diagnosis ==1)
 
 
 lin_mod <- lm(MCS_vacc ~ MCS_8 + vac_control.factor + sex + age, data = vac_plots)
@@ -81,13 +83,14 @@ lin_mod2 %>%
 
 ```{r}
 mcs_plot <- vac_plots %>%
+  mutate(vac_control = if_else(vac_control.factor == "Control", "Unvaccinated", "Vaccinated")) %>%
     pivot_longer(MCS_1:MCS_vacc) %>%
   ggplot(aes(x = name, y = value)) +
-  geom_boxplot(aes(x = name, y = value, fill = name)) +
+  geom_boxplot(aes(x = name, y = value)) +
   geom_jitter(color="black", size=0.4, alpha=0.5, width = 0.15) +
   theme_fira() +
     theme(legend.position = "none") +
-  facet_wrap(~ vac_control.factor) +
+  facet_wrap(~ vac_control) +
   scale_x_discrete(labels=c("MCS_1" = "3 month",
                             "MCS_8" = "8 month",
                               "MCS_vacc" = "10 month")) +
@@ -109,13 +112,14 @@ mcs_plot <- vac_plots %>%
   
 
 pcs_plot <- vac_plots %>%
+    mutate(vac_control = if_else(vac_control.factor == "Control", "Unvaccinated", "Vaccinated")) %>%
     pivot_longer(PCS_1:PCS_vacc) %>%
   ggplot(aes(x = name, y = value)) +
-  geom_boxplot(aes(x = name, y = value, fill = name)) +
+  geom_boxplot(aes(x = name, y = value)) +
   geom_jitter(color="black", size=0.4, alpha=0.5, width = 0.15) +
   theme_fira() +
   theme(legend.position="none") +
-  facet_wrap(~ vac_control.factor) +
+  facet_wrap(~ vac_control) +
    scale_x_discrete(labels=c("PCS_1" = "3 month",
                             "PCS_8" = "8 month",
                               "PCS_vacc" = "Post vaccine/matched")) +
@@ -297,6 +301,10 @@ az_pfizer <- data %>%
          PCS_8 = m8_qol$PCS,
          PCS_vacc = m12_qol$PCS) %>%
       filter(!is.na(fu8m_vac_type.factor))
+
+data %>%
+   filter(!is.na(vac_control.factor)) %>%
+  count(fu8m_vac_type.factor)
 
 pcs_az <- az_pfizer %>%
     pivot_longer(PCS_1:PCS_vacc) %>%
